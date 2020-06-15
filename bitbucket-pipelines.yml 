@@ -1,0 +1,10 @@
+image: atlassian/default-image:2
+pipelines:
+  default:
+    - step:
+        script:
+          - echo ${DOCKER_HUB_PASSWORD} | docker login --username "${DOCKER_HUB_USERNAME}" --password-stdin
+          - docker build -t paweltroc/sms2mail .
+          - docker push paweltroc/sms2mail
+        services:
+          - docker
