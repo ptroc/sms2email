@@ -31,8 +31,8 @@ config = {
     'email_login': os.getenv("EMAIL_LOGIN"),
     'email_password': os.getenv("EMAIL_PASSWORD"),
     'email_host': os.getenv("EMAIL_HOST"),
-    'ping_count': os.getenv("PING_COUNT"),
-    'wait_time': os.getenv("WAIT_TIME")
+    'ping_count': int(os.getenv("PING_COUNT")),
+    'wait_time': int(os.getenv("WAIT_TIME"))
 }
 
 
