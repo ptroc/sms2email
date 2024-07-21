@@ -47,6 +47,9 @@ class Sms2Mail:
             password=self.config['db_password'])
         self.cur = self.conn.cursor()
 
+    # public methods
+
+    # main method triggering all actions
     def main(self):
         for sms in self.__fetch_new_sms():
             sms_id = sms[0]
@@ -54,17 +57,22 @@ class Sms2Mail:
             result = self.__send_sms_as_email(sms_text=sms[1], sms_sender=sms[2], sms_date=sms[3])
             self.__update_sms_record(sms_id=sms_id, result=result)
             self.conn.commit()
+            # wait for 1 sec to avoid db lock (just in case)
             time.sleep(1)
 
+    # private methods
+
+    # fetch new sms from gamud db inbox table
     def __fetch_new_sms(self):
         query = """select "ID", "TextDecoded", "SenderNumber", "ReceivingDateTime" from inbox
                     where "ID" not in (
-                    select sms_id from sms2email
+                    select sms_id from s2e.sms2email
                     )"""
         self.cur.execute(query)
         return self.cur.fetchall()
 
-    def __send_sms_as_email(self, sms_text, sms_sender, sms_date):
+    # send sms as email
+    def __send_sms_as_email(self, sms_text:str, sms_sender:str, sms_date:str):
         port = 465  # For SSL
         context = ssl.create_default_context()
         logger.info(f"Sending EMAIL to:{self.config['email']}")
@@ -75,6 +83,7 @@ class Sms2Mail:
         message["To"] = self.config['email']
         message.set_content(f"Received at: {sms_date}\nMessage: {sms_text}")
 
+        # Send the message via our own SMTP server.
         with smtplib.SMTP_SSL(self.config['email_host'], port, context=context) as server:
             logger.info(server.login(self.config['email_login'], self.config['email_password']))
             logger.info(server.send_message(
@@ -83,17 +92,19 @@ class Sms2Mail:
                 msg=message))
         return "DONE"
 
+    # store sms2email record in db before sending email
     def __store_sms_in_db(self, sms_id, email):
         query = """INSERT 
-         INTO sms2email
+         INTO s2e.sms2email
          (sms_id, email, status, created_on)
             VALUES (%s, %s, %s, now()) RETURNING id;
          """
         self.cur.execute(query, (sms_id, email, 'PENDING'))
         return self.cur.fetchone()[0]
 
+    # update sms2email record in db after sending email
     def __update_sms_record(self, sms_id, result):
-        query = "UPDATE sms2email SET status = %s WHERE sms_id = %s;"
+        query = "UPDATE s2e.sms2email SET status = %s WHERE sms_id = %s;"
         self.cur.execute(query, (result, sms_id))
 
 
@@ -104,13 +115,13 @@ if __name__ == '__main__':
 
     s2m = Sms2Mail(cls_config=config)
 
+    # add signal handlers
     signal.signal(signal.SIGALRM, terminate_process)
     signal.signal(signal.SIGTERM, terminate_process)
 
     try:
         i = 0
         while True:
-            # logger.info("Running producer")
             s2m.main()
             time.sleep(config['wait_time'])
             i = i + 1
